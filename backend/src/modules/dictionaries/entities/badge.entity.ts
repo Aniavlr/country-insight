@@ -1,5 +1,5 @@
 import { Entity, Column } from 'typeorm';
-import { BaseEntity } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity.js';
 
 @Entity('badges')
 export class Badge extends BaseEntity {
