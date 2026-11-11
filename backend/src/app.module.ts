@@ -10,6 +10,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { EventsModule } from './modules/events/events.module.js';
 import { TicketsModule } from './modules/tickets/tickets.module.js';
 import { InteractionModule } from './modules/interaction/interaction.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { InteractionModule } from './modules/interaction/interaction.module.js';
     EventsModule,
     TicketsModule,
     InteractionModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
