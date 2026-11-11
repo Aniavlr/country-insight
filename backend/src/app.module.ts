@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { DictionariesModule } from './modules/dictionaries/dictionaries.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { EventsModule } from './modules/events/events.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { UsersModule } from './modules/users/users.module.js';
 
     DictionariesModule,
     UsersModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
