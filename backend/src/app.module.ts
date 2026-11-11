@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { DictionariesModule } from './modules/dictionaries/dictionaries.module.js';
+import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { DictionariesModule } from './modules/dictionaries/dictionaries.module.j
     }),
 
     DictionariesModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
