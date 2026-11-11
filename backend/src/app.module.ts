@@ -9,6 +9,7 @@ import { DictionariesModule } from './modules/dictionaries/dictionaries.module.j
 import { UsersModule } from './modules/users/users.module.js';
 import { EventsModule } from './modules/events/events.module.js';
 import { TicketsModule } from './modules/tickets/tickets.module.js';
+import { InteractionModule } from './modules/interaction/interaction.module.js';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { TicketsModule } from './modules/tickets/tickets.module.js';
     UsersModule,
     EventsModule,
     TicketsModule,
+    InteractionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
