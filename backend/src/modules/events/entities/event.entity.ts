@@ -1,13 +1,22 @@
-import { Entity, Column, ManyToOne, JoinColumn, OneToMany, type Relation } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+  type Relation,
+} from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity.js';
-import { Organizer } from '../../users/entities/organizer.entity.js';
 import { City } from '../../dictionaries/entities/city.entity.js';
 import { Category } from '../../dictionaries/entities/category.entity.js';
 import { Format } from '../../dictionaries/entities/format.entity.js';
 import { AgeLimit } from '../../dictionaries/entities/age-limit.entity.js';
 import { EventStatus } from '../../dictionaries/entities/event-status.entity.js';
-import { EventImage } from './event-image.entity.js';
-import { EventLocation } from './event-location.entity.js';
+
+import type { Organizer } from '../../users/entities/organizer.entity.js';
+import type { EventImage } from './event-image.entity.js';
+import type { EventLocation } from './event-location.entity.js';
+import type { EventTicketType } from '../../tickets/entities/event-ticket-type.entity.js';
 
 @Entity('events')
 export class Event extends BaseEntity {
@@ -27,22 +36,18 @@ export class Event extends BaseEntity {
   endDate: Date;
 
   @Column({ default: false })
-  isRecurring: boolean; // разовое или повторяющееся
+  isRecurring: boolean;
 
   @Column({ type: 'text', nullable: true })
-  includedInPrice: string; // что входит в стоимость
+  includedInPrice: string;
 
   @Column({ nullable: true })
   dressCode: string;
 
   @Column({ type: 'text', nullable: true })
-  bringWithYou: string; // что взять с собой
+  bringWithYou: string;
 
-  // Связи:
-  @ManyToOne('Organizer')
-  @JoinColumn()
-  organizer: Relation<Organizer>;
-
+  // Связи со справочниками:
   @ManyToOne(() => City)
   @JoinColumn()
   city: City;
@@ -63,9 +68,20 @@ export class Event extends BaseEntity {
   @JoinColumn()
   status: EventStatus;
 
-  @OneToMany(() => EventImage, (image) => image.event)
-  images: EventImage[];
+  // Двусторонние связи:
+  @ManyToOne('Organizer')
+  @JoinColumn()
+  organizer: Relation<Organizer>;
 
-  @OneToMany(() => EventLocation, (location) => location.event)
-  locations: EventLocation[];
+  @OneToMany('EventImage', (image: EventImage) => image.event)
+  images: Relation<EventImage[]>;
+
+  @OneToMany('EventLocation', (location: EventLocation) => location.event)
+  locations: Relation<EventLocation[]>;
+
+  @OneToMany(
+    'EventTicketType',
+    (ticketType: EventTicketType) => ticketType.event,
+  )
+  ticketTypes: Relation<EventTicketType[]>;
 }

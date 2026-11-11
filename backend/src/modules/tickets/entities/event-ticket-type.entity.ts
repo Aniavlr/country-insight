@@ -1,6 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn, type Relation } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity.js';
-import { Event } from '../../events/entities/event.entity.js';
+import type { Event } from '../../events/entities/event.entity.js';
 import { TicketType } from '../../dictionaries/entities/ticket-type.entity.js';
 
 @Entity('event_ticket_types')
@@ -26,9 +26,9 @@ export class EventTicketType extends BaseEntity {
   @Column({ nullable: true })
   refundPolicy: string; // "разрешён", "запрещён", "срок"
 
-  @ManyToOne(() => Event, { onDelete: 'CASCADE' })
+  @ManyToOne('Event', { onDelete: 'CASCADE' }) 
   @JoinColumn()
-  event: Event;
+  event: Relation<Event>;
 
   @ManyToOne(() => TicketType)
   @JoinColumn()
