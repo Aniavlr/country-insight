@@ -3,7 +3,7 @@ import { BaseEntity } from '../../../common/entities/base.entity.js';
 
 @Entity('cities')
 export class City extends BaseEntity {
-  @Column({ length: 100 })
+  @Column({ length: 100, unique: true })
   name: string;
 
   @Column({ length: 100, nullable: true })
