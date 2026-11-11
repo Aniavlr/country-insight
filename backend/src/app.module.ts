@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DictionariesModule } from './modules/dictionaries/dictionaries.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { EventsModule } from './modules/events/events.module.js';
+import { TicketsModule } from './modules/tickets/tickets.module.js';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { EventsModule } from './modules/events/events.module.js';
     DictionariesModule,
     UsersModule,
     EventsModule,
+    TicketsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
