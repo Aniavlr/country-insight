@@ -114,6 +114,7 @@ export class EventsService {
           price: t.price,
           totalQuantity: t.totalQuantity,
           paymentType,
+          limitPerUser: t.limitPerUser || 0,
           salesStartDate: t.salesStartDate
             ? new Date(t.salesStartDate)
             : undefined,
@@ -314,7 +315,7 @@ export class EventsService {
     }
 
     // Ограничение: если событие уже одобрено, нельзя менять дату и место (только текст)
-    // Для простоты в дипломе: разрешаем менять всё, пока статус "На модерации"
+    // Для диплома: разрешаем менять всё, пока статус "На модерации"
     if (event.status.name === 'Одобрено') {
       delete dto.startDate;
       delete dto.endDate;

@@ -1,7 +1,8 @@
-import { Entity, Column, ManyToOne, JoinColumn, type Relation } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToMany, type Relation } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity.js';
 import { Order } from './order.entity.js';
 import { EventTicketType } from './event-ticket-type.entity.js';
+import { ETicket } from './e-ticket.entity.js';
 
 @Entity('order_items')
 export class OrderItem extends BaseEntity {
@@ -18,4 +19,7 @@ export class OrderItem extends BaseEntity {
   @ManyToOne(() => EventTicketType)
   @JoinColumn()
   ticketType: EventTicketType;
+
+  @OneToMany('ETicket', (ticket: ETicket) => ticket.orderItem)
+  tickets: Relation<ETicket[]>;
 }

@@ -1,5 +1,5 @@
 import { IsString, IsNumber, IsOptional, IsDateString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateTicketTypeDto {
   @ApiProperty({ example: 'Standard' })
@@ -20,6 +20,14 @@ export class CreateTicketTypeDto {
   })
   @IsNumber()
   paymentTypeId: number;
+
+  @ApiPropertyOptional({
+    example: 2,
+    description: 'Лимит билетов на одного пользователя (0 - без лимита)',
+  })
+  @IsNumber()
+  @IsOptional()
+  limitPerUser?: number;
 
   @ApiProperty({ example: '2026-10-01T00:00:00Z' })
   @IsDateString()
