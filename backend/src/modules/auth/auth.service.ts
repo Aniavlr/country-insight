@@ -109,7 +109,12 @@ export class AuthService {
 
   // 3. Вход (Логин)
   async login(dto: LoginDto) {
-    const user = await this.userRepo.findOne({ where: { email: dto.email } });
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('user.email = :email', { email: dto.email })
+      .getOne();
+
     if (!user) throw new UnauthorizedException('Неверный email или пароль');
     if (user.isBlocked) throw new UnauthorizedException('Аккаунт заблокирован');
 

@@ -12,6 +12,7 @@ import { TicketsModule } from './modules/tickets/tickets.module.js';
 import { InteractionModule } from './modules/interaction/interaction.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { AnalyticsModule } from './modules/analytics/analytics.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module.js';
     InteractionModule,
     AuthModule,
     AnalyticsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

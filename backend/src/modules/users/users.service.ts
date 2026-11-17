@@ -81,7 +81,13 @@ export class UsersService {
 
   // 3. Смена пароля
   async changePassword(userId: number, dto: ChangePasswordDto) {
-    const user = await this.userRepo.findOneBy({ id: userId });
+    // Используем QueryBuilder, чтобы достать хеш
+    const user = await this.userRepo
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('user.id = :id', { id: userId })
+      .getOne();
+
     if (!user) throw new NotFoundException('Пользователь не найден');
 
     const isMatch = await bcrypt.compare(dto.oldPassword, user.passwordHash);
