@@ -16,6 +16,7 @@ import { Organizer } from '../users/entities/organizer.entity.js';
 import { EventTicketType } from '../tickets/entities/event-ticket-type.entity.js';
 import { TicketType } from '../dictionaries/entities/ticket-type.entity.js';
 import { Order } from '../tickets/entities/order.entity.js';
+import { Subscription } from '../users/entities/subscription.entity.js';
 
 import { NotificationsModule } from '../notifications/notifications.module.js';
 
@@ -34,6 +35,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
       EventTicketType,
       TicketType,
       Order,
+      Subscription,
     ]),
     NotificationsModule,
   ],

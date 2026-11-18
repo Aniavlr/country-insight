@@ -19,6 +19,7 @@ import { TicketType } from '../dictionaries/entities/ticket-type.entity.js';
 import { EventImage } from './entities/event-image.entity.js';
 import { Order } from '../tickets/entities/order.entity.js';
 import { User } from '../users/entities/user.entity.js';
+import { Subscription } from '../users/entities/subscription.entity.js';
 
 import { CreateEventDto } from './dto/create-event.dto.js';
 import { EventFilterDto } from './dto/event-filter.dto.js';
@@ -46,6 +47,8 @@ export class EventsService {
     private paymentTypeRepo: Repository<TicketType>,
     private notificationsService: NotificationsService,
     @InjectRepository(Order) private orderRepo: Repository<Order>,
+    @InjectRepository(Subscription)
+    private subscriptionRepo: Repository<Subscription>,
   ) {}
 
   // 1. Создание события (только для организаторов)
@@ -416,6 +419,10 @@ export class EventsService {
     const status = await this.statusRepo.findOneBy({ id: statusId });
     if (!status) throw new NotFoundException('Статус не найден');
 
+    if (event.status?.id === statusId) {
+      return { message: `Событие уже имеет статус "${status.name}"` };
+    }
+
     event.status = status;
     await this.eventRepo.save(event);
 
@@ -425,6 +432,22 @@ export class EventsService {
       `Статус вашего события "${event.title}" изменен на "${status.name}".`,
       'Модерация',
     );
+
+    //Если событие ОДОБРЕНО, уведомляем подписчиков
+    if (status.name === 'Одобрено') {
+      const subscriptions = await this.subscriptionRepo.find({
+        where: { organizer: { id: event.organizer.id } },
+        relations: { user: true },
+      });
+
+      for (const sub of subscriptions) {
+        await this.notificationsService.create(
+          sub.user.id,
+          `Новое событие от организатора "${event.organizer.name}": "${event.title}"!`,
+          'Новое событие у подписки', // Тип из сида
+        );
+      }
+    }
 
     return { message: `Статус изменен на ${status.name}` };
   }
