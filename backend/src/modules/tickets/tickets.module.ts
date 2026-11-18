@@ -18,6 +18,7 @@ import { Reminder } from '../interaction/entities/reminder.entity.js';
 import { ReminderType } from '../dictionaries/entities/reminder-type.entity.js';
 
 import { NotificationsModule } from '../notifications/notifications.module.js';
+import { GamificationModule } from '../gamification/gamification.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
       ReminderType,
     ]),
     NotificationsModule,
+    GamificationModule,
   ],
   exports: [TypeOrmModule],
   controllers: [TicketsController],

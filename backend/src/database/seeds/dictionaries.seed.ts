@@ -290,6 +290,7 @@ export async function seedDictionaries(dataSource: DataSource): Promise<void> {
       { name: 'Напоминание' },
       { name: 'Возврат' },
       { name: 'Модерация' },
+      { name: 'Системное' },
     ]);
     console.log('notification_types');
   } else {
@@ -321,6 +322,37 @@ export async function seedDictionaries(dataSource: DataSource): Promise<void> {
         name: 'Ночной житель города',
         description: 'Посетил 3 ночных события (после 22:00)',
         condition: 'night_events >= 3',
+      },
+      {
+        name: 'Гурман',
+        description: 'Посетил 3 события категории «Еда и напитки»',
+        condition: 'food_events >= 3',
+      },
+      {
+        name: 'Мастер на все руки',
+        description: 'Посетил 3 мастер-класса',
+        condition: 'workshop_events >= 3',
+      },
+      {
+        name: 'Меломан',
+        description:
+          'Посетил 3 музыкальных события (концерты, виниловые вечера)',
+        condition: 'music_events >= 3',
+      },
+      {
+        name: 'Исследователь',
+        description: 'Посетил события минимум в 3 разных категориях',
+        condition: 'unique_categories >= 3',
+      },
+      {
+        name: 'Тусовщик',
+        description: 'Посетил 5 событий за один месяц',
+        condition: 'events_in_month >= 5',
+      },
+      {
+        name: 'Ранняя пташка',
+        description: 'Посетил событие, которое начинается до 10:00 утра',
+        condition: 'early_bird',
       },
     ],
     ['name'],

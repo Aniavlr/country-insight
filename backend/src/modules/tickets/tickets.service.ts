@@ -31,6 +31,7 @@ import { AddGuestDto } from './dto/add-guest.dto.js';
 import { CreateRefundDto } from './dto/create-refund.dto.js';
 
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { GamificationService } from '../gamification/gamification.service.js';
 
 @Injectable()
 export class TicketsService {
@@ -55,6 +56,7 @@ export class TicketsService {
     @InjectRepository(Reminder) private reminderRepo: Repository<Reminder>,
     @InjectRepository(ReminderType)
     private reminderTypeRepo: Repository<ReminderType>,
+    private gamificationService: GamificationService,
   ) {}
 
   // 1. Бронирование билета (Создание заказа)
@@ -370,6 +372,15 @@ export class TicketsService {
       }
     }
 
+    const userId = ticket.orderItem.order.user?.id;
+    if (userId) {
+      await this.gamificationService.checkAndAwardBadges(userId);
+    } else {
+      this.logger.warn(
+        `Билет ${ticket.code} погашен, но пользователь не найден (возможно, удален).`,
+      );
+    }
+
     return {
       message: 'Билет успешно погашен',
       holderName: ticket.holderName,
@@ -385,7 +396,7 @@ export class TicketsService {
         status: true,
         orderItem: {
           ticketType: { event: { organizer: { user: true } } },
-          order: { status: true },
+          order: { status: true, user: true },
         },
       },
     });
@@ -416,7 +427,7 @@ export class TicketsService {
         status: true,
         orderItem: {
           ticketType: { event: { organizer: { user: true } } },
-          order: { status: true },
+          order: { status: true, user: true },
         },
       },
     });
