@@ -15,6 +15,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PromocodesModule } from './modules/promocodes/promocodes.module.js';
+import { UploadsModule } from './modules/uploads/uploads.module.js';
 
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -48,6 +49,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     AdminModule,
     NotificationsModule,
     PromocodesModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
