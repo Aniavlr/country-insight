@@ -128,7 +128,7 @@ export class TicketsService {
     let promocode: Promocode | null = null;
     if (dto.promocode) {
       promocode = await this.promocodeRepo.findOneBy({
-        code: dto.promocode,
+        code: dto.promocode.trim().toUpperCase(),
         event: { id: dto.eventId },
       });
       if (!promocode) {
