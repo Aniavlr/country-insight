@@ -8,9 +8,10 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
@@ -22,13 +23,19 @@ import { ETicketStatus } from '../dictionaries/entities/e-ticket-status.entity.j
 import { Event } from '../events/entities/event.entity.js';
 import { User } from '../users/entities/user.entity.js';
 import { RefundRequest } from './entities/refund-request.entity.js';
+import { Reminder } from '../interaction/entities/reminder.entity.js';
+import { ReminderType } from '../dictionaries/entities/reminder-type.entity.js';
 
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { AddGuestDto } from './dto/add-guest.dto.js';
 import { CreateRefundDto } from './dto/create-refund.dto.js';
 
+import { NotificationsService } from '../notifications/notifications.service.js';
+
 @Injectable()
 export class TicketsService {
+  private readonly logger = new Logger(TicketsService.name);
+
   constructor(
     @InjectRepository(Order) private orderRepo: Repository<Order>,
     @InjectRepository(OrderItem) private orderItemRepo: Repository<OrderItem>,
@@ -44,13 +51,17 @@ export class TicketsService {
     private dataSource: DataSource,
     @InjectRepository(RefundRequest)
     private refundRepo: Repository<RefundRequest>,
+    private notificationsService: NotificationsService,
+    @InjectRepository(Reminder) private reminderRepo: Repository<Reminder>,
+    @InjectRepository(ReminderType)
+    private reminderTypeRepo: Repository<ReminderType>,
   ) {}
 
   // 1. Бронирование билета (Создание заказа)
   async createOrder(dto: CreateOrderDto, user: User) {
     const ticketType = await this.ticketTypeRepo.findOne({
       where: { id: dto.ticketTypeId },
-      relations: { event: { status: true } }, // Загружаем статус события
+      relations: { event: { status: true } },
     });
 
     if (!ticketType) throw new NotFoundException('Тип билета не найден');
@@ -58,7 +69,7 @@ export class TicketsService {
       throw new BadRequestException('Билет не относится к этому событию');
     }
 
-    // ПРОВЕРКА СТАТУСА СОБЫТИЯ
+    // Проверка статуса события
     if (ticketType.event.status.name !== 'Одобрено') {
       throw new BadRequestException(
         'Билеты на это событие пока недоступны (не одобрено или отменено)',
@@ -81,7 +92,6 @@ export class TicketsService {
         .leftJoin('order.status', 'status')
         .where('item.ticketType = :id', { id: ticketType.id })
         .andWhere('order.user = :userId', { userId: user.id })
-        // Учитываем только реально выкупленные/забронированные (не отмененные и не возвращенные)
         .andWhere('status.name NOT IN (:...ignoredStatuses)', {
           ignoredStatuses: ['Отменён', 'Возврат'],
         })
@@ -113,7 +123,7 @@ export class TicketsService {
       throw new BadRequestException('Недостаточно билетов на это событие');
     }
 
-    // Считаем скидку и сумму
+    // Считаем скидку и проверяем промокод
     let discount = 0;
     let promocode: Promocode | null = null;
     if (dto.promocode) {
@@ -121,12 +131,22 @@ export class TicketsService {
         code: dto.promocode,
         event: { id: dto.eventId },
       });
-      if (!promocode) throw new BadRequestException('Промокод не найден');
+      if (!promocode) {
+        throw new BadRequestException(
+          'Промокод не найден или не подходит к этому событию',
+        );
+      }
+      if (promocode.validFrom && promocode.validFrom > now) {
+        throw new BadRequestException('Срок действия промокода еще не начался');
+      }
+      if (promocode.validTo && promocode.validTo < now) {
+        throw new BadRequestException('Срок действия промокода истек');
+      }
       if (
         promocode.usageLimit > 0 &&
         promocode.usedCount >= promocode.usageLimit
       ) {
-        throw new BadRequestException('Промокод больше не действует');
+        throw new BadRequestException('Лимит использований промокода исчерпан');
       }
 
       if (promocode.discountType === 'percent') {
@@ -138,8 +158,6 @@ export class TicketsService {
     }
 
     const totalAmount = Math.max(0, ticketType.price * dto.quantity - discount);
-
-    // ОПРЕДЕЛЯЕМ СТАТУСЫ (Если сумма 0, то заказ сразу оплачен)
     const isFree = totalAmount === 0;
 
     const targetOrderStatus = await this.orderStatusRepo.findOneBy({
@@ -153,10 +171,12 @@ export class TicketsService {
       throw new NotFoundException('Необходимые статусы не найдены в БД');
     }
 
-    // Транзакция
+    // Транзакция создания заказа и билетов
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    let savedOrder: Order;
 
     try {
       const order = this.orderRepo.create({
@@ -165,17 +185,21 @@ export class TicketsService {
         status: targetOrderStatus,
         totalAmount,
         promocode: promocode || undefined,
-        paidAt: isFree ? new Date() : undefined, // Если бесплатно, сразу ставим дату оплаты
+        paidAt: isFree ? new Date() : undefined,
       });
-      await queryRunner.manager.save(order);
+      savedOrder = await queryRunner.manager.save(order);
 
       const orderItem = this.orderItemRepo.create({
-        order,
+        order: savedOrder,
         ticketType,
         quantity: dto.quantity,
         pricePerUnit: ticketType.price,
       });
       await queryRunner.manager.save(orderItem);
+
+      const holderName =
+        (dto as any).holderName || user.profile?.firstName || 'Гость';
+      const holderEmail = (dto as any).holderEmail || user.email;
 
       for (let i = 0; i < dto.quantity; i++) {
         const ticketCode = this.generateTicketCode();
@@ -184,10 +208,10 @@ export class TicketsService {
         const eTicket = this.eTicketRepo.create({
           orderItem,
           code: ticketCode,
-          holderName: user.profile?.firstName || 'Гость',
-          holderEmail: user.email,
+          holderName,
+          holderEmail,
           status: targetTicketStatus,
-          barcodeUrl: barcodeUrl,
+          barcodeUrl,
         });
         await queryRunner.manager.save(eTicket);
       }
@@ -198,19 +222,66 @@ export class TicketsService {
       }
 
       await queryRunner.commitTransaction();
-      return {
-        message: isFree
-          ? 'Заказ успешно оформлен (бесплатно)'
-          : 'Заказ создан. Билеты ожидают оплаты на входе.',
-        orderId: order.id,
-        totalAmount,
-      };
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw new BadRequestException('Ошибка при создании заказа');
     } finally {
       await queryRunner.release();
     }
+
+    // Отправка уведомления и создание напоминаний (после успешной транзакции)
+    try {
+      await this.notificationsService.create(
+        user.id,
+        `Вы успешно забронировали билеты на событие "${ticketType.event.title}". Ждем вас!`,
+        'Билет',
+      );
+
+      const eventDate = new Date(ticketType.event.startDate);
+      const reminderTypes = await this.reminderTypeRepo.find();
+      const type24h = reminderTypes.find((t) => t.name === 'За 24 часа');
+      const type1h = reminderTypes.find((t) => t.name === 'За 1 час');
+
+      if (type24h) {
+        const remindAt = new Date(eventDate.getTime() - 24 * 60 * 60 * 1000);
+        if (remindAt > new Date()) {
+          await this.reminderRepo.save(
+            this.reminderRepo.create({
+              user: { id: user.id } as User,
+              event: ticketType.event,
+              type: type24h,
+              remindAt,
+            }),
+          );
+        }
+      }
+
+      if (type1h) {
+        const remindAt = new Date(eventDate.getTime() - 60 * 60 * 1000);
+        if (remindAt > new Date()) {
+          await this.reminderRepo.save(
+            this.reminderRepo.create({
+              user: { id: user.id } as User,
+              event: ticketType.event,
+              type: type1h,
+              remindAt,
+            }),
+          );
+        }
+      }
+    } catch (notifyErr: any) {
+      this.logger.warn(
+        `Заказ #${savedOrder.id} создан, но не удалось создать уведомление/напоминание: ${notifyErr.message}`,
+      );
+    }
+
+    return {
+      message: isFree
+        ? 'Заказ успешно оформлен (бесплатно)'
+        : 'Заказ создан. Билеты ожидают оплаты на входе.',
+      orderId: savedOrder.id,
+      totalAmount,
+    };
   }
 
   // Вспомогательный метод генерации кода
@@ -257,7 +328,7 @@ export class TicketsService {
     return query.orderBy('event.startDate', 'DESC').getMany();
   }
 
-  // ОБЩИЙ МЕТОД ДЛЯ ГАШЕНИЯ БИЛЕТА
+  // Общий метод для гашения билета
   private async markTicketAsUsed(ticket: ETicket) {
     const usedStatus = await this.eTicketStatusRepo.findOneBy({
       name: 'Использован',
@@ -306,7 +377,7 @@ export class TicketsService {
     };
   }
 
-  // 3. Отметка по КОДУ
+  // 3. Отметка по коду
   async validateTicket(code: string, user: User) {
     const ticket = await this.eTicketRepo.findOne({
       where: { code },
@@ -314,7 +385,7 @@ export class TicketsService {
         status: true,
         orderItem: {
           ticketType: { event: { organizer: { user: true } } },
-          order: { status: true }, // Обязательно статус заказа!
+          order: { status: true },
         },
       },
     });
@@ -345,7 +416,7 @@ export class TicketsService {
         status: true,
         orderItem: {
           ticketType: { event: { organizer: { user: true } } },
-          order: { status: true }, // Обязательно статус заказа!
+          order: { status: true },
         },
       },
     });
@@ -388,12 +459,15 @@ export class TicketsService {
     const activeTicketStatus = await this.eTicketStatusRepo.findOneBy({
       name: 'Активен',
     });
+
     if (!paidOrderStatus || !activeTicketStatus) {
       throw new NotFoundException('Необходимые статусы не найдены в БД');
     }
 
+    const quantity = (dto as any).quantity || 1;
+
     const order = this.orderRepo.create({
-      user: user,
+      user,
       event: ticketType.event,
       status: paidOrderStatus,
       totalAmount: 0,
@@ -404,26 +478,35 @@ export class TicketsService {
     const orderItem = this.orderItemRepo.create({
       order,
       ticketType,
-      quantity: 1,
+      quantity,
       pricePerUnit: 0,
     });
     await this.orderItemRepo.save(orderItem);
 
-    const ticketCode = this.generateTicketCode();
-    const barcodeUrl = await this.generateBarcodeImage(ticketCode);
+    const generatedCodes: string[] = [];
 
-    const eTicket = this.eTicketRepo.create({
-      orderItem,
-      code: ticketCode,
-      holderName: dto.holderName,
-      holderEmail: dto.holderEmail,
-      isManuallyAdded: true,
-      status: activeTicketStatus,
-      barcodeUrl: barcodeUrl,
-    });
+    for (let i = 0; i < quantity; i++) {
+      const ticketCode = this.generateTicketCode();
+      const barcodeUrl = await this.generateBarcodeImage(ticketCode);
 
-    await this.eTicketRepo.save(eTicket);
-    return { message: 'Гость успешно добавлен', ticketCode };
+      const eTicket = this.eTicketRepo.create({
+        orderItem,
+        code: ticketCode,
+        holderName: dto.holderName,
+        holderEmail: dto.holderEmail,
+        isManuallyAdded: true,
+        status: activeTicketStatus,
+        barcodeUrl,
+      });
+      await this.eTicketRepo.save(eTicket);
+      generatedCodes.push(ticketCode);
+    }
+
+    return {
+      message: 'Гость успешно добавлен',
+      ticketCode: generatedCodes[0],
+      ticketCodes: generatedCodes,
+    };
   }
 
   // 6. Экспорт в Excel
@@ -434,8 +517,9 @@ export class TicketsService {
     });
 
     if (!event) throw new NotFoundException('Событие не найдено');
-    if (event.organizer.user.id !== user.id)
+    if (event.organizer.user.id !== user.id) {
       throw new ForbiddenException('Нет доступа');
+    }
 
     const tickets = await this.eTicketRepo.find({
       where: { orderItem: { ticketType: { event: { id: eventId } } } },
@@ -471,7 +555,7 @@ export class TicketsService {
     return workbook.xlsx.writeBuffer();
   }
 
-  // 7. Генерация картинки
+  // 7. Генерация картинки штрих-кода
   private async generateBarcodeImage(code: string): Promise<string> {
     const pngBuffer = await bwipjs.toBuffer({
       bcid: 'code128',
@@ -496,18 +580,20 @@ export class TicketsService {
   async requestRefund(dto: CreateRefundDto, user: User) {
     const order = await this.orderRepo.findOne({
       where: { id: dto.orderId, user: { id: user.id } },
-      relations: { event: true, status: true, items: { tickets: true } },
+      relations: {
+        event: { organizer: { user: true } },
+        status: true,
+        items: { tickets: true },
+      },
     });
 
     if (!order) throw new NotFoundException('Заказ не найден');
-
     if (order.status.name === 'Возврат' || order.status.name === 'Отменён') {
       throw new BadRequestException(
         'По этому заказу уже нельзя запросить возврат',
       );
     }
 
-    // Проверка: есть ли уже активная заявка?
     const existingRefund = await this.refundRepo.findOneBy({
       order: { id: order.id },
       status: 'pending',
@@ -516,14 +602,12 @@ export class TicketsService {
       throw new BadRequestException('Вы уже отправили запрос на возврат');
     }
 
-    // Проверка: не прошел ли уже билет / не началось ли событие
     if (order.event.startDate < new Date()) {
       throw new BadRequestException(
         'Нельзя вернуть билет на прошедшее событие',
       );
     }
 
-    // Проверка: не использован ли уже билет
     for (const item of order.items) {
       for (const ticket of item.tickets) {
         if (ticket.isUsed) {
@@ -540,8 +624,21 @@ export class TicketsService {
       reason: dto.reason,
       status: 'pending',
     });
-
     await this.refundRepo.save(refund);
+
+    // Уведомляем организатора о новом запросе на возврат
+    try {
+      await this.notificationsService.create(
+        order.event.organizer.user.id,
+        `Поступил новый запрос на возврат по заказу #${order.id} (событие "${order.event.title}").`,
+        'Возврат',
+      );
+    } catch (notifyErr: any) {
+      this.logger.warn(
+        `Не удалось уведомить организатора о возврате #${refund.id}: ${notifyErr.message}`,
+      );
+    }
+
     return {
       message: 'Запрос на возврат отправлен организатору',
       refundId: refund.id,
@@ -557,6 +654,7 @@ export class TicketsService {
     const refund = await this.refundRepo.findOne({
       where: { id: refundId },
       relations: {
+        user: true,
         order: {
           event: { organizer: { user: true } },
           status: true,
@@ -593,11 +691,30 @@ export class TicketsService {
           await this.eTicketRepo.save(ticket);
         }
       }
+
+      // Удаляем неотправленные напоминания по этому событию
+      await this.reminderRepo.delete({
+        user: { id: refund.user.id },
+        event: { id: refund.order.event.id },
+        sentAt: IsNull(),
+      });
+
+      await this.notificationsService.create(
+        refund.user.id,
+        `Ваш запрос на возврат билетов на событие "${refund.order.event.title}" одобрен.`,
+        'Возврат',
+      );
     } else {
       refund.status = 'rejected';
+      await this.notificationsService.create(
+        refund.user.id,
+        `Ваш запрос на возврат билетов на событие "${refund.order.event.title}" отклонён организатором.`,
+        'Возврат',
+      );
     }
 
     await this.refundRepo.save(refund);
+
     return {
       message: `Запрос на возврат ${action === 'approve' ? 'одобрен' : 'отклонён'}`,
     };
@@ -611,8 +728,9 @@ export class TicketsService {
     });
 
     if (!event) throw new NotFoundException('Событие не найдено');
-    if (event.organizer.user.id !== user.id)
+    if (event.organizer.user.id !== user.id) {
       throw new ForbiddenException('Нет доступа к этому событию');
+    }
 
     const tickets = await this.eTicketRepo.find({
       where: { orderItem: { ticketType: { event: { id: eventId } } } },

@@ -13,13 +13,16 @@ import { InteractionModule } from './modules/interaction/interaction.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { AnalyticsModule } from './modules/analytics/analytics.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -42,6 +45,7 @@ import { AdminModule } from './modules/admin/admin.module.js';
     AuthModule,
     AnalyticsModule,
     AdminModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

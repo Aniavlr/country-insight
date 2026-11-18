@@ -14,6 +14,10 @@ import { OrderStatus } from '../dictionaries/entities/order-status.entity.js';
 import { ETicketStatus } from '../dictionaries/entities/e-ticket-status.entity.js';
 import { Event } from '../events/entities/event.entity.js';
 import { Organizer } from '../users/entities/organizer.entity.js';
+import { Reminder } from '../interaction/entities/reminder.entity.js';
+import { ReminderType } from '../dictionaries/entities/reminder-type.entity.js';
+
+import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -28,8 +32,10 @@ import { Organizer } from '../users/entities/organizer.entity.js';
       ETicketStatus,
       Event,
       Organizer,
-      RefundRequest,
+      Reminder,
+      ReminderType,
     ]),
+    NotificationsModule,
   ],
   exports: [TypeOrmModule],
   controllers: [TicketsController],

@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 
 import { Event } from './entities/event.entity.js';
 import { EventLocation } from './entities/event-location.entity.js';
@@ -17,11 +17,14 @@ import { Organizer } from '../users/entities/organizer.entity.js';
 import { EventTicketType } from '../tickets/entities/event-ticket-type.entity.js';
 import { TicketType } from '../dictionaries/entities/ticket-type.entity.js';
 import { EventImage } from './entities/event-image.entity.js';
+import { Order } from '../tickets/entities/order.entity.js';
+import { User } from '../users/entities/user.entity.js';
 
 import { CreateEventDto } from './dto/create-event.dto.js';
 import { EventFilterDto } from './dto/event-filter.dto.js';
 import { UpdateEventDto } from './dto/update-event.dto.js';
-import { User } from '../users/entities/user.entity.js';
+
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 @Injectable()
 export class EventsService {
@@ -41,6 +44,8 @@ export class EventsService {
     private imageRepo: Repository<EventImage>,
     @InjectRepository(TicketType)
     private paymentTypeRepo: Repository<TicketType>,
+    private notificationsService: NotificationsService,
+    @InjectRepository(Order) private orderRepo: Repository<Order>,
   ) {}
 
   // 1. Создание события (только для организаторов)
@@ -315,7 +320,7 @@ export class EventsService {
     }
 
     // Ограничение: если событие уже одобрено, нельзя менять дату и место (только текст)
-    // Для диплома: разрешаем менять всё, пока статус "На модерации"
+    // разрешаем менять всё, пока статус "На модерации"
     if (event.status.name === 'Одобрено') {
       delete dto.startDate;
       delete dto.endDate;
@@ -378,18 +383,49 @@ export class EventsService {
 
     event.status = cancelledStatus;
     await this.eventRepo.save(event);
-    return { message: 'Событие отменено' };
+
+    // Уведомляем всех пользователей
+    const orders = await this.orderRepo.find({
+      where: {
+        event: { id: event.id },
+        status: { name: In(['Оплачен', 'Ожидает оплаты']) },
+      },
+      relations: { user: true },
+    });
+
+    // Убираем дубликаты пользователей (если кто-то купил дважды)
+    const uniqueUserIds = [...new Set(orders.map((o) => o.user.id))];
+
+    for (const userId of uniqueUserIds) {
+      await this.notificationsService.create(
+        userId,
+        `К сожалению, событие "${event.title}" было отменено организатором.`,
+        'Отмена события',
+      );
+    }
+    return { message: 'Событие отменено. Покупатели уведомлены.' };
   }
 
   // 8. Модерация (для Админа)
   async updateStatus(id: number, statusId: number) {
-    const event = await this.eventRepo.findOneBy({ id });
+    const event = await this.eventRepo.findOne({
+      where: { id },
+      relations: { organizer: { user: true } },
+    });
     if (!event) throw new NotFoundException('Событие не найдено');
     const status = await this.statusRepo.findOneBy({ id: statusId });
     if (!status) throw new NotFoundException('Статус не найден');
 
     event.status = status;
     await this.eventRepo.save(event);
+
+    // Уведомляем организатора
+    await this.notificationsService.create(
+      event.organizer.user.id,
+      `Статус вашего события "${event.title}" изменен на "${status.name}".`,
+      'Модерация',
+    );
+
     return { message: `Статус изменен на ${status.name}` };
   }
 

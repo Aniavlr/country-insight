@@ -25,6 +25,12 @@ export class Promocode extends BaseEntity {
   @Column({ type: 'timestamp', nullable: true })
   endDate: Date;
 
+  @Column({ type: 'timestamp', nullable: true })
+  validFrom: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  validTo: Date;
+
   @ManyToOne(() => Event, { onDelete: 'CASCADE' })
   @JoinColumn()
   event: Event;

@@ -15,6 +15,9 @@ import { EventStatus } from '../dictionaries/entities/event-status.entity.js';
 import { Organizer } from '../users/entities/organizer.entity.js';
 import { EventTicketType } from '../tickets/entities/event-ticket-type.entity.js';
 import { TicketType } from '../dictionaries/entities/ticket-type.entity.js';
+import { Order } from '../tickets/entities/order.entity.js';
+
+import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -30,7 +33,9 @@ import { TicketType } from '../dictionaries/entities/ticket-type.entity.js';
       Organizer,
       EventTicketType,
       TicketType,
+      Order,
     ]),
+    NotificationsModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],
