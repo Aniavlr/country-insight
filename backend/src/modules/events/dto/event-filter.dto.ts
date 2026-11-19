@@ -1,4 +1,10 @@
-import { IsOptional, IsNumber, IsString, IsDateString, IsIn } from 'class-validator';
+import {
+  IsOptional,
+  IsNumber,
+  IsString,
+  IsDateString,
+  IsIn,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -21,7 +27,10 @@ export class EventFilterDto {
   @IsNumber()
   formatId?: number;
 
-  @ApiPropertyOptional({ example: 3, description: 'ID возрастного ограничения' })
+  @ApiPropertyOptional({
+    example: 3,
+    description: 'ID возрастного ограничения',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -68,7 +77,6 @@ export class EventFilterDto {
   @IsString()
   search?: string;
 
-
   @ApiPropertyOptional({
     example: 'date',
     description: 'Сортировка: date | popular | price_asc | price_desc',
@@ -78,4 +86,13 @@ export class EventFilterDto {
   @IsString()
   @IsIn(['date', 'popular', 'price_asc', 'price_desc'])
   sortBy?: 'date' | 'popular' | 'price_asc' | 'price_desc';
+
+  @ApiPropertyOptional({
+    example: 'free',
+    enum: ['free', 'cheap', 'medium', 'premium'],
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['free', 'cheap', 'medium', 'premium'])
+  priceCategory?: 'free' | 'cheap' | 'medium' | 'premium';
 }

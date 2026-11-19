@@ -148,6 +148,7 @@ export class EventsService {
   async findAll(filters: EventFilterDto) {
     const query = this.eventRepo
       .createQueryBuilder('event')
+      .distinct(true)
       .leftJoinAndSelect('event.city', 'city')
       .leftJoinAndSelect('event.category', 'category')
       .leftJoinAndSelect('event.format', 'format')
@@ -191,7 +192,7 @@ export class EventsService {
         end.setHours(23, 59, 59, 999);
       } else if (filters.period === 'weekend') {
         const day = today.getDay();
-        const diffToSaturday = (6 - day + 7) % 7;
+        const diffToSaturday = day === 0 ? 0 : 6 - day;
         start.setDate(today.getDate() + diffToSaturday);
         start.setHours(0, 0, 0, 0);
         end = new Date(start);
@@ -224,9 +225,46 @@ export class EventsService {
       );
     }
 
+    // Фильтр по ценовой категории
+    if (filters.priceCategory) {
+      let priceCondition = '';
+      if (filters.priceCategory === 'free') priceCondition = 'tt.price = 0';
+      if (filters.priceCategory === 'cheap')
+        priceCondition = 'tt.price > 0 AND tt.price <= 50';
+      if (filters.priceCategory === 'medium')
+        priceCondition = 'tt.price > 50 AND tt.price <= 100';
+      if (filters.priceCategory === 'premium')
+        priceCondition = 'tt.price > 100';
+
+      if (priceCondition) {
+        query.andWhere((qb) => {
+          const subQuery = qb
+            .subQuery()
+            .select('1')
+            .from(EventTicketType, 'tt') // Используем класс сущности и отдельный алиас tt
+            .where('tt.event = event.id') // TypeORM сам подставит правильное имя колонки!
+            .andWhere(priceCondition)
+            .getQuery();
+          return 'EXISTS ' + subQuery;
+        });
+      }
+    }
+
     // Сортировка
     if (filters.sortBy === 'popular') {
-      query.orderBy('event.createdAt', 'DESC');
+      query
+        .addSelect((subQuery) => {
+          return subQuery
+            .select('COUNT(ord.id)', 'ordersCount')
+            .from(Order, 'ord')
+            .leftJoin('ord.status', 'ordStatus')
+            .where('ord.event = event.id')
+            .andWhere('ordStatus.name NOT IN (:...excludedStatuses)', {
+              excludedStatuses: ['Отменён', 'Возврат'],
+            });
+        }, 'ordersCount')
+        .orderBy('"ordersCount"', 'DESC')
+        .addOrderBy('event.startDate', 'ASC');
     } else if (filters.sortBy === 'price_asc') {
       query.orderBy('ticketTypes.price', 'ASC');
     } else if (filters.sortBy === 'price_desc') {
