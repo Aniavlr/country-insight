@@ -7,12 +7,19 @@ import { Notification } from '../interaction/entities/notification.entity.js';
 import { NotificationType } from '../dictionaries/entities/notification-type.entity.js';
 import { Reminder } from '../interaction/entities/reminder.entity.js';
 import { Event } from '../events/entities/event.entity.js';
+import { UserProfile } from '../users/entities/user-profile.entity.js';
 
 import { RemindersService } from './reminders.service.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, NotificationType, Reminder, Event]),
+    TypeOrmModule.forFeature([
+      Notification,
+      NotificationType,
+      Reminder,
+      Event,
+      UserProfile,
+    ]),
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService, RemindersService],

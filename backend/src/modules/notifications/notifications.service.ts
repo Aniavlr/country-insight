@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { Notification } from '../interaction/entities/notification.entity.js';
 import { NotificationType } from '../dictionaries/entities/notification-type.entity.js';
 import { User } from '../users/entities/user.entity.js';
+import { UserProfile } from '../users/entities/user-profile.entity.js';
 
 @Injectable()
 export class NotificationsService {
@@ -15,10 +16,17 @@ export class NotificationsService {
     private notificationRepo: Repository<Notification>,
     @InjectRepository(NotificationType)
     private typeRepo: Repository<NotificationType>,
+    @InjectRepository(UserProfile) private profileRepo: Repository<UserProfile>,
   ) {}
 
   //Создать уведомление
   async create(userId: number, message: string, typeName: string) {
+    const profile = await this.profileRepo.findOneBy({ user: { id: userId } });
+    if (profile && profile.emailNotifications === false) {
+      this.logger.debug(`Пользователь ${userId} отключил уведомления. Пропускаем.`);
+      return null; // Не отправляем
+    }
+
     const type = await this.typeRepo.findOneBy({ name: typeName });
 
     if (!type) {
