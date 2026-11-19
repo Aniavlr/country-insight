@@ -17,6 +17,8 @@ import { ReminderType } from './entities/reminder-type.entity.js';
 import { NotificationType } from './entities/notification-type.entity.js';
 
 import { CitiesController } from './dictionaries.controller.js';
+import { AdminDictionariesController } from './admin-dictionaries.controller.js'; // <-- ДОБАВИЛИ
+import { PublicDictionariesController } from './public-dictionaries.controller.js';
 
 const entities = [
   City,
@@ -36,7 +38,7 @@ const entities = [
 ];
 
 @Module({
-  controllers: [CitiesController],
+  controllers: [CitiesController, AdminDictionariesController, PublicDictionariesController],
   imports: [TypeOrmModule.forFeature(entities)],
   exports: [TypeOrmModule],
 })
